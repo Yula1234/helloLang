@@ -49,6 +49,29 @@ int string_to_number_hl(char* str) {
 	return atoi(str);	
 }
 
+void file_write_hl(char* path, char* value) {
+	FILE* f = fopen(path,"w");
+	fputs(value, f);
+	fclose(f);
+}
+
+char* file_read_hl(char* path) {
+    FILE *fp = fopen(path, "r");
+
+    char ch;
+    char* buffer = (char*)malloc(1024);
+    int c = 0;
+    while ((ch = fgetc(fp)) != EOF) {
+        buffer[c] = ch;
+        c += 1;
+    }
+    buffer[c] = 0;
+
+    fclose(fp);
+
+    return buffer;
+}
+
 int WinMain() {
 	return 0;
 }
