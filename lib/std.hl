@@ -1,0 +1,99 @@
+__asm__ "
+extern printf
+extern scanf
+extern malloc
+extern free
+extern ExitProcess@4
+"
+
+#def NULL = 0
+
+__stdattr__ def nullptr(void) -> ptr {
+	return __cast_p(NULL)
+}
+
+__stdattr__ def exit(code:int) -> void {
+	__asm__ "push dword [ebp-8]
+	call ExitProcess@4
+	add esp, 4"
+}
+
+__stdattr__ def print(num:int) -> void {
+	__asm__ "push dword [ebp-8]"
+	__asm__ "push dword numfmt"
+	__asm__ "call printf"
+	__asm__ "add esp, 8"
+}
+
+__stdattr__ def println(num:int) -> void {
+	__asm__ "push dword [ebp-8]"
+	__asm__ "push dword numfmt"
+	__asm__ "call printf"
+	__asm__ "add esp, 8"
+	__asm__ "push newline"
+	__asm__ "call printf"
+	__asm__ "add esp, 4"
+}
+
+__stdattr__ def prints(str:string) -> void {
+	__asm__ "push dword [ebp-8]"
+	__asm__ "call printf"
+	__asm__ "add esp, 4"
+}
+
+__stdattr__ def printfmt(fmt:string,num:int) -> void {
+	__asm__ "push dword [ebp-12]
+	push dword [ebp-8]
+	call printf
+	add esp, 8"
+}
+
+__stdattr__ def prints_p(str:ptr) -> void {
+	__asm__ "push dword [ebp-8]"
+	__asm__ "push strfmt"
+	__asm__ "call printf"
+	__asm__ "add esp, 8"
+}
+
+__stdattr__ def input_number(p:ptr) -> void {
+	__asm__ "push dword [ebp-8]"
+	__asm__ "push numfmt"
+	__asm__ "call scanf"
+	__asm__ "add esp, 8"
+}
+
+__stdattr__ def input_str(p:ptr) -> void {
+	__asm__ "push dword [ebp-8]"
+	__asm__ "push strfmt"
+	__asm__ "call scanf"
+	__asm__ "add esp, 8"
+	__asm__ "mov edx, [ebp-8]"
+}
+
+__stdattr__ def alloc(size:int) -> ptr {
+	ptr mem = $nullptr(void)
+	__asm__ "push dword [ebp-8]"
+	__asm__ "call malloc"
+	__asm__ "add esp, 4"
+	__asm__ "mov [ebp-12], eax"
+	return mem
+}
+
+__stdattr__ def dealloc(p:ptr) -> void {
+	__asm__ "push dword [ebp-8]"
+	__asm__ "call free"
+	__asm__ "add esp, 4"
+}
+
+__stdattr__ def throw(str:ptr,excode:int) -> void {
+	__asm__ "mov edx, [ebp-8]"
+	__asm__ "push dword [edx]"
+	__asm__ "call printf"
+	__asm__ "add esp, 4"
+	__asm__ "push dword newline"
+	__asm__ "call printf"
+	__asm__ "add esp, 4"
+	__asm__ "push dword [ebp-12]"
+	__asm__ "call ExitProcess@4"
+	__asm__ "add esp, 4"
+}
