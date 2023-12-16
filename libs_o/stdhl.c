@@ -26,6 +26,15 @@ int* calloc_hl(int size) {
 	return (int*)calloc(size,4);
 }
 
+char* to_string_hl(int val) {
+	char* p = malloc(36);
+	for(int i = 0;i < 37; i++) {
+		p[i] = 0;
+	}
+	sprintf(p,"%d",val);
+	return p;
+}
+
 int WinMain() {
 	return 0;
 }
