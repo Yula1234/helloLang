@@ -10,13 +10,27 @@ A programming language.
 hellolang currentlu compiles on NASM x86_64 windows executable
 
 
-## Example code
+## hello world example
 
 ```hl
 #include lib.std
 
 def main(argc : int, argv : ptr) -> int {
 	$prints("Hello, World!\n")
+    return 0
+}
+```
+
+## fibonacci numbers example
+```hl
+#include lib.std
+#include lib.math
+
+def main(argc : int, argv : ptr) -> int {
+    for(int i = 0; i < 31; i = i + 1) {
+        $println($fib(i))
+    }
+    return 0
 }
 ```
 
