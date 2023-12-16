@@ -2,6 +2,7 @@ cextern "strlen_hl"
 cextern "strcmp_hl"
 cextern "to_string_hl"
 cextern "concat_strings_hl"
+cextern "string_to_number_hl"
 
 def strlen(p:ptr) -> int {
 	int res = 0
@@ -43,7 +44,7 @@ def str_del(str:ptr) -> void {
 	call dealloc"
 }
 
-def to_string(val:int) -> ptr {
+def to_str(val:int) -> ptr {
 	ptr p = __cast_p(0)
 	__asm__ "push dword [ebp-8]
 	call to_string_hl
@@ -60,4 +61,13 @@ def concat(one:ptr,two:ptr) -> ptr {
 	add esp, 8
 	mov dword [ebp-16], eax"
 	return p
+}
+
+def to_num(str:ptr) -> int {
+	int res = 0
+	__asm__ "push dword [ebp-8]
+	call string_to_number_hl
+	add esp, 4
+	mov dword [ebp-12], eax"
+	return res
 }

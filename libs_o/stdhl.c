@@ -41,8 +41,12 @@ char* concat_strings_hl(char* one, char* two) {
 	for(int i = 0; i < size + 1; i++) {
 		p[i] = 0;
 	}
-	sprintf(p,"%s%s",two,one);
+	sprintf(p,"%s%s",one,two);
 	return p;
+}
+
+int string_to_number_hl(char* str) {
+	return atoi(str);	
 }
 
 int WinMain() {
