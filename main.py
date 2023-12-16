@@ -1722,7 +1722,7 @@ global main
 
     def compile(self,filename):
         linkeds = ""
-        linked_list = ["stdhl","listhl"]
+        linked_list = ["stdhl"]
         for i in linked_list:
             linkeds += f"libs_o/{i}.o "
         comp_options = (f"NASM/nasm.exe --gprefix _ -f win32 ./{filename} -o ./out.o",
