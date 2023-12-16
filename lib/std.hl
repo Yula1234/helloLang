@@ -107,3 +107,19 @@ __stdattr__ def calloc(size:int) -> ptr {
 	mov dword [ebp-12], eax"
 	return p
 }
+
+__stdattr__ def __write(p:ptr, val:int) -> void {
+	__asm__ "push dword [ebp-8]
+	push dword [ebp-12]
+	call write_mem
+	add esp, 8"
+}
+
+__stdattr__ def __read(p:ptr) -> int {
+	int res = 0
+	__asm__ "push dword [ebp-8]
+	call read_mem
+	add esp, 4
+	mov dword [ebp-12], eax"
+	return res
+}
