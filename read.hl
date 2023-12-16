@@ -1,8 +1,9 @@
 #include lib.std
+#include lib.str
+#include lib.filesys
 
-def main(argc:int, argv:ptr) -> int {
-	ptr p = $calloc(1)
-	$__write(p, 20)
-	$print(**p)
+
+def main(void) -> int {
+	$prints($f_read("test.txt"))
 	return 0
 }

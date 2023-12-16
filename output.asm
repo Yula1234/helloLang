@@ -251,36 +251,228 @@ __read:
 	add esp, 24
 	pop ebp
 	ret
+extern strlen_hl
+extern strcmp_hl
+extern to_string_hl
+extern concat_strings_hl
+extern string_to_number_hl
 
-main:
-	; int main(int argc,ptr argv)
+strlen:
+	; int strlen(ptr p)
+	push ebp
+	mov ebp, esp
+	sub esp, 24
+	mov dword [ebp-8], ecx
+	mov dword [ebp-12], dword 0
+	push dword [ebp-12]
+	call strlen_hl
+	add esp, 4
+	mov dword [ebp-16], eax
+	push dword [ebp-12]
+	pop eax
+	add esp, 24
+	pop ebp
+	ret
+
+strcmp:
+	; int strcmp(ptr one,ptr two)
+	push ebp
+	mov ebp, esp
+	sub esp, 32
+	mov dword [ebp-8], ecx
+	mov dword [ebp-12], edx
+	mov dword [ebp-16], dword 0
+	push dword [ebp-8]
+	push dword [ebp-12]
+	call strcmp_hl
+	mov dword [ebp-16], eax
+	add esp, 8
+	push dword [ebp-16]
+	mov ebx, 0
+	pop eax
+	cmp eax, ebx
+	je L0
+	jne L1
+	L0:
+	push 1
+	jmp L2
+	L1:
+	push 0
+	L2:
+	pop eax
+	cmp eax, 0
+	je ELSE4
+	IF3:
+	mov eax, 1
+	add esp, 32
+	pop ebp
+	ret
+	jmp END5
+	ELSE4:
+	xor eax, eax
+	add esp, 32
+	pop ebp
+	ret
+	jmp END5
+	END5:
+	push dword [ebp-16]
+	pop eax
+	add esp, 32
+	pop ebp
+	ret
+
+str_init:
+	; ptr str_init(int size)
+	push ebp
+	mov ebp, esp
+	sub esp, 24
+	mov dword [ebp-8], ecx
+	push dword [ebp-8]
+	mov ebx, 1
+	pop eax
+	add eax, ebx
+	push eax
+	pop ecx
+	call alloc
+	push eax
+	pop eax
+	mov dword [ebp-12], eax
+	mov edx, dword [ebp-12]
+	mov ebx, dword [ebp-8]
+	add edx, ebx
+	add edx, 1
+	
+	push dword [ebp-12]
+	pop eax
+	add esp, 24
+	pop ebp
+	ret
+
+str_del:
+	; void str_del(ptr str)
 	push ebp
 	mov ebp, esp
 	sub esp, 16
-	mov edx, dword [ebp+8]
-	mov dword [ebp-8], edx
-	mov edx, dword [ebp+12]
-	mov [ebp-12], edx
-	mov ecx, 1
-	call calloc
-	push eax
-	pop eax
-	mov dword [ebp-16], eax
-	push dword [ebp-16]
-	pop ecx
-	mov edx, 20
-	call __write
-	push dword [ebp-16]
-	pop eax
-	push dword [eax]
-	pop ecx
-	call print
+	mov dword [ebp-8], ecx
+	mov ecx, dword [ebp-8]
+	call dealloc
 	xor eax, eax
 	add esp, 16
 	pop ebp
 	ret
 
+to_str:
+	; ptr to_str(int val)
+	push ebp
+	mov ebp, esp
+	sub esp, 24
+	mov dword [ebp-8], ecx
+	push 0
+	pop eax
+	mov dword [ebp-12], eax
+	push dword [ebp-8]
+	call to_string_hl
+	add esp, 4
+	mov dword [ebp-12], eax
+	push dword [ebp-12]
+	pop eax
+	add esp, 24
+	pop ebp
+	ret
+
+concat:
+	; ptr concat(ptr one,ptr two)
+	push ebp
+	mov ebp, esp
+	sub esp, 32
+	mov dword [ebp-8], ecx
+	mov dword [ebp-12], edx
+	push 0
+	pop eax
+	mov dword [ebp-16], eax
+	push dword [ebp-12]
+	push dword [ebp-8]
+	call concat_strings_hl
+	add esp, 8
+	mov dword [ebp-16], eax
+	push dword [ebp-16]
+	pop eax
+	add esp, 32
+	pop ebp
+	ret
+
+to_num:
+	; int to_num(ptr str)
+	push ebp
+	mov ebp, esp
+	sub esp, 24
+	mov dword [ebp-8], ecx
+	mov dword [ebp-12], dword 0
+	push dword [ebp-8]
+	call string_to_number_hl
+	add esp, 4
+	mov dword [ebp-12], eax
+	push dword [ebp-12]
+	pop eax
+	add esp, 24
+	pop ebp
+	ret
+extern file_write_hl
+extern file_read_hl
+
+f_write:
+	; void f_write(ptr path,ptr value)
+	push ebp
+	mov ebp, esp
+	sub esp, 24
+	mov dword [ebp-8], ecx
+	mov dword [ebp-12], edx
+	push dword [ebp-12]
+	push dword [ebp-8]
+	call file_write_hl
+	add esp, 8
+	xor eax, eax
+	add esp, 24
+	pop ebp
+	ret
+
+f_read:
+	; ptr f_read(ptr path)
+	push ebp
+	mov ebp, esp
+	sub esp, 24
+	mov dword [ebp-8], ecx
+	push 0
+	pop eax
+	mov dword [ebp-12], eax
+	push dword [ebp-8]
+	call file_read_hl
+	add esp, 4
+	mov dword [ebp-12], eax
+	push dword [ebp-12]
+	pop eax
+	add esp, 24
+	pop ebp
+	ret
+
+main:
+	; int main()
+	push ebp
+	mov ebp, esp
+	sub esp, 8
+	push s_0
+	pop ecx
+	call f_read
+	push eax
+	pop ecx
+	call prints
+	xor eax, eax
+	add esp, 8
+	pop ebp
+	ret
+
 section .data
+	s_0: db "test.txt",0
 	numfmt: db "%d",0
 	charfmt: db "%c",0
 	strfmt: db "%s",0
