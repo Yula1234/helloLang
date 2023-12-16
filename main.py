@@ -5,6 +5,7 @@ import os
 import inspect
 import random
 import time
+import argparse
 
 from similar_text import similar_text
 from rply import LexerGenerator
@@ -339,7 +340,7 @@ class typechecker:
                     self.TypeError(f"TypeError at function '{funcname}' call (arg {c}): " + 
                                     f"except type - {vartype}, got - char")
             elif isinstance(obj,ast.GetAdr) or isinstance(obj,ast.Ptr):
-                if not vartype == "ptr":
+                if not vartype == "ptr" or vartype == "string":
                     self.TypeError(f"TypeError at function '{funcname}' call (arg {c}): " + 
                                     f"except type - {vartype}, got - ptr")
             elif isinstance(obj,ast.GetVar):
@@ -352,6 +353,8 @@ class typechecker:
                 if not vartype == vartype2:
                     if vartype == "int" and vartype2 in self.int_types:
                         return 
+                    if vartype == "string" and vartype2 == "ptr":
+                        return
                     self.TypeError(f"TypeError at function '{funcname}' call (arg {c}): " + 
                                     f"except type - {vartype}, got - {vartype2}")
             elif isinstance(obj,ast.GetArrItem):
@@ -1720,13 +1723,13 @@ global main
     def _add_bss(self, val):
         self.bss += val + "\n"
 
-    def compile(self,filename):
+    def compile(self,filename,args):
         linkeds = ""
         linked_list = ["stdhl"]
         for i in linked_list:
             linkeds += f"libs_o/{i}.o "
         comp_options = (f"NASM/nasm.exe --gprefix _ -f win32 ./{filename} -o ./out.o",
-                        f"MinGW/bin/gcc.exe ./out.o {linkeds}-o ./a.exe -m32")
+                        f"MinGW/bin/gcc.exe ./out.o {linkeds}-o ./{args.output} -m32")
         for el in comp_options:
             subprocess.run(el)
         os.remove("out.o")
@@ -1746,8 +1749,12 @@ global main
 
 inter = Inter()
 
+prs = argparse.ArgumentParser(prog="helloLang")
+prs.add_argument("filename")
+prs.add_argument("-o","--output")
+
 inter.init_text()
-prog = inter.compare(open(sys.argv[1],"r").read())
+prog = inter.compare(open(prs.parse_args().filename,"r").read())
 prog.eval()
 inter._add_data('\t' + r'numfmt: db "%d",0')
 inter._add_data('\t' + r'charfmt: db "%c",0')
@@ -1757,6 +1764,6 @@ inter.init_data()
 inter.init_bss()
 
 inter.save_asm()
-inter.compile("output.asm")
+inter.compile("output.asm",prs.parse_args())
 
 sys.exit(0)
