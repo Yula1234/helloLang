@@ -1,0 +1,17 @@
+#include lib.std
+
+def assert(str:string,expr:int) -> void {
+	__asm__ "mov esi, ebp
+	sub esi, 8
+	mov edi, dword [ebp-12]
+	cmp edi, 0
+	je .err
+	jmp .end
+	.err:
+		mov ecx, esi
+		mov edx, edx
+		call throw
+	.end:
+		mov eax, 0
+	"
+}

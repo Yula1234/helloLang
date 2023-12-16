@@ -1,0 +1,19 @@
+#include lib.assert
+
+def cast_p_to_i32(p:ptr) -> int {
+	int i32 = 0
+	__asm__ "mov edx, dword [ebp-8]
+	mov ebx, ebp
+	sub ebx, 12
+	mov dword [ebx], edx"
+	return i32
+}
+
+def cast_i32_to_p(i32:int) -> ptr {
+	ptr p = __cast_p(0)
+	__asm__ "mov edx, dword [ebp-8]
+	mov ebx, ebp
+	sub ebx, 12
+	mov dword [ebx], edx"
+	return p
+}

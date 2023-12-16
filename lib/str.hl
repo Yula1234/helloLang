@@ -1,0 +1,42 @@
+cextern "strlen_hl"
+cextern "strcmp_hl"
+
+def strlen(p:ptr) -> int {
+	int res = 0
+	__asm__ "push dword [ebp-12]"
+	__asm__ "call strlen_hl"
+	__asm__ "add esp, 4"
+	__asm__ "mov dword [ebp-16], eax"
+	return res
+	
+}
+
+def strcmp(one:ptr, two:ptr) -> int {
+	int res = 0
+	__asm__ "push dword [ebp-8]"
+	__asm__ "push dword [ebp-12]"
+	__asm__ "call strcmp_hl"
+	__asm__ "mov dword [ebp-16], eax"
+	__asm__ "add esp, 8"
+	if(res == 0) {
+		return 1
+	} else {
+		return 0
+	}
+	return res
+}
+
+def str_init(size:int) -> ptr {
+	ptr p = $alloc(size+1)
+	__asm__ "mov edx, dword [ebp-12]#pointer to allocated mem#
+	mov ebx, dword [ebp-8]#sizeof#
+	add edx, ebx
+	add edx, 1
+	#mov byte [edx], byte 0#"
+	return p
+}
+
+def str_del(str:ptr) -> void {
+	__asm__ "mov ecx, dword [ebp-8]
+	call dealloc"
+}

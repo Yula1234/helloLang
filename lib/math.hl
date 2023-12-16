@@ -1,0 +1,10 @@
+cextern "fib_hl"
+
+def fib(n:int) -> int {
+	int res = 0
+	__asm__ "push dword [ebp-8]"
+	__asm__ "call fib_hl"
+	__asm__ "add esp, 4"
+	__asm__ "mov dword [ebp-12], eax"
+	return res
+}
