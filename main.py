@@ -1726,10 +1726,15 @@ global main
     def compile(self,filename,args):
         linkeds = ""
         linked_list = ["stdhl"]
+        comp_options = None
         for i in linked_list:
             linkeds += f"libs_o/{i}.o "
-        comp_options = (f"NASM/nasm.exe --gprefix _ -f win32 ./{filename} -o ./out.o",
+        if args.output:
+            comp_options = (f"NASM/nasm.exe --gprefix _ -f win32 ./{filename} -o ./out.o",
                         f"MinGW/bin/gcc.exe ./out.o {linkeds}-o ./{args.output} -m32")
+        else:
+            comp_options = (f"NASM/nasm.exe --gprefix _ -f win32 ./{filename} -o ./out.o",
+                            f"MinGW/bin/gcc.exe ./out.o {linkeds}-o ./a.exe -m32")
         for el in comp_options:
             subprocess.run(el)
         os.remove("out.o")
