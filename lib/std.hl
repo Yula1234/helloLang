@@ -109,10 +109,9 @@ __stdattr__ def calloc(size:int) -> ptr {
 }
 
 __stdattr__ def __write(p:ptr, val:int) -> void {
-	__asm__ "push dword [ebp-8]
-	push dword [ebp-12]
-	call write_mem
-	add esp, 8"
+	__asm__ "mov esi, dword [ebp-8]
+	mov edx, dword [ebp-12]
+	mov dword [esi], edx"
 }
 
 __stdattr__ def __read(p:ptr) -> int {
