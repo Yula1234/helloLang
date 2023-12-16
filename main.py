@@ -6,6 +6,7 @@ import inspect
 import random
 import time
 import argparse
+import json
 
 from similar_text import similar_text
 from rply import LexerGenerator
@@ -418,7 +419,7 @@ class ast:
                 if isinstance(self.right,ast.Integer):
                     inter.output(f"\tmov ebx, {self.right['value']}")
                 else:
-                    self.left.eval()
+                    self.right.eval()
                 if not isinstance(self.right,ast.Integer):
                     inter.output("\tpop ebx")
                 if not isinstance(self.left,ast.Integer):
@@ -439,7 +440,7 @@ class ast:
                 if isinstance(self.right,ast.Integer):
                     inter.output(f"\tmov ebx, {self.right['value']}")
                 else:
-                    self.left.eval()
+                    self.right.eval()
                 if not isinstance(self.right,ast.Integer):
                     inter.output("\tpop ebx")
                 if not isinstance(self.left,ast.Integer):
@@ -452,6 +453,7 @@ class ast:
             
     class Mul(BinaryOp):
         def eval(self):
+            print(json.dumps(inter.Vars,indent=4))
             if not self.dop:
                 if isinstance(self.left,ast.Integer):
                     inter.output(f"\tmov eax, {self.left['value']}")
@@ -460,7 +462,7 @@ class ast:
                 if isinstance(self.right,ast.Integer):
                     inter.output(f"\tmov ebx, {self.right['value']}")
                 else:
-                    self.left.eval()
+                    self.right.eval()
                 if not isinstance(self.right,ast.Integer):
                     inter.output("\tpop ebx")
                 if not isinstance(self.left,ast.Integer):
@@ -481,7 +483,7 @@ class ast:
                 if isinstance(self.right,ast.Integer):
                     inter.output(f"\tmov ebx, {self.right['value']}")
                 else:
-                    self.left.eval()
+                    self.right.eval()
                 if not isinstance(self.right,ast.Integer):
                     inter.output("\tpop ebx")
                 if not isinstance(self.left,ast.Integer):
@@ -661,6 +663,7 @@ class ast:
 
     class GetVar(YulaObject):
         def eval(self):
+            print(self.props)
             if self["name"] in inter.Vars:
                 inter.output(f"\tpush dword [ebp-{inter.Vars[self['name']]['offset']}]")
             elif self["name"] in inter.Consts:
