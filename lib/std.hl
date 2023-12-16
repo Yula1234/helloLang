@@ -1,10 +1,11 @@
-__asm__ "
-extern printf
-extern scanf
-extern malloc
-extern free
-extern ExitProcess@4
-"
+cextern "printf"
+cextern "scanf"
+cextern "malloc"
+cextern "free"
+cextern "ExitProcess@4"
+cextern "calloc_hl"
+cextern "write_mem"
+cextern "read_mem"
 
 #def NULL = 0
 
@@ -96,4 +97,13 @@ __stdattr__ def throw(str:ptr,excode:int) -> void {
 	__asm__ "push dword [ebp-12]"
 	__asm__ "call ExitProcess@4"
 	__asm__ "add esp, 4"
+}
+
+__stdattr__ def calloc(size:int) -> ptr {
+	ptr p = __cast_p(0)
+	__asm__ "push dword [ebp-8]
+	call calloc_hl
+	add esp, 4
+	mov dword [ebp-12], eax"
+	return p
 }
