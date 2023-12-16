@@ -16,7 +16,7 @@ hellolang currentlu compiles on NASM x86_64 windows executable
 #include lib.std
 
 def main(argc : int, argv : ptr) -> int {
-	$prints("Hello, World!\n")
+    $prints("Hello, World!\n")
     return 0
 }
 ```
