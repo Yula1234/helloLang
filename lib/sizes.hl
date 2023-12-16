@@ -1,0 +1,6 @@
+#def sizeof_i64, 	8
+#def sizeof_i32,	4
+#def sizeof_b, 		4
+#def sizeof_i16,	2
+#def sizeof_i8,		1
+#def sizeof_chr,	1
