@@ -6,10 +6,6 @@ int read_mem(int* ptr) {
 	return *ptr;
 }
 
-void write_mem(int* ptr, int val) {
-	*ptr = val;
-}
-
 int strlen_hl(char* ptr) {
 	return strlen(ptr);
 }
