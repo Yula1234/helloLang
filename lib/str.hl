@@ -1,6 +1,6 @@
 cextern "strlen_hl"
 cextern "strcmp_hl"
-cextern "replace_hl"
+cextern "to_string_hl"
 
 def strlen(p:ptr) -> int {
 	int res = 0
@@ -40,4 +40,13 @@ def str_init(size:int) -> ptr {
 def str_del(str:ptr) -> void {
 	__asm__ "mov ecx, dword [ebp-8]
 	call dealloc"
+}
+
+def to_string(val:int) -> ptr {
+	ptr p = __cast_p(0)
+	__asm__ "push dword [ebp-8]
+	call to_string_hl
+	add esp, 4
+	mov dword [ebp-12], eax"
+	return p
 }

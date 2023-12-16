@@ -12,7 +12,7 @@ def fib(n:int) -> int {
 def pow(num:int,p:int) -> int {
 	int counter = 0
 	int res = num
-	while(counter < p) {
+	while(counter < (p - 1)) {
 		res = res * num
 		counter = counter + 1
 	}
