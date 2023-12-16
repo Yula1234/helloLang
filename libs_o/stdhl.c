@@ -25,6 +25,10 @@ int fib_hl(int n) {
 	return fib_hl(n-1) + fib_hl(n-2);
 }
 
+int* calloc_hl(int size) {
+	return (int*)calloc(size,4);
+}
+
 int WinMain() {
 	return 0;
 }
