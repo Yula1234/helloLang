@@ -26,5 +26,5 @@ def main(argc : int, argv : ptr) -> int {
 for compile using gcc and nasm
 
 ```cmd
-python main.py file.hl
+python main.py file.hl -o output.exe
 ```
