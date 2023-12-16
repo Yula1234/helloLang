@@ -2,11 +2,11 @@
 #include<stdlib.h>
 #include<string.h>
 
-int read_ptr(int* ptr) {
+int read_mem(int* ptr) {
 	return *ptr;
 }
 
-void write_ptr(int* ptr, int val) {
+void write_mem(int* ptr, int val) {
 	*ptr = val;
 }
 
