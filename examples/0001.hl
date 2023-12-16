@@ -1,0 +1,6 @@
+#include lib.std
+
+def main(void) -> int {
+	$prints("hello world")
+	return 0 
+}
