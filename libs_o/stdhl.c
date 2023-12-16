@@ -27,11 +27,21 @@ int* calloc_hl(int size) {
 }
 
 char* to_string_hl(int val) {
-	char* p = malloc(36);
+	char* p = (char*)malloc(36);
 	for(int i = 0;i < 37; i++) {
 		p[i] = 0;
 	}
 	sprintf(p,"%d",val);
+	return p;
+}
+
+char* concat_strings_hl(char* one, char* two) {
+	int size = strlen(one) + strlen(two) + 12;
+	char* p = (char*)malloc(size);
+	for(int i = 0; i < size + 1; i++) {
+		p[i] = 0;
+	}
+	sprintf(p,"%s%s",two,one);
 	return p;
 }
 

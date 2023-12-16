@@ -1,6 +1,7 @@
 cextern "strlen_hl"
 cextern "strcmp_hl"
 cextern "to_string_hl"
+cextern "concat_strings_hl"
 
 def strlen(p:ptr) -> int {
 	int res = 0
@@ -48,5 +49,15 @@ def to_string(val:int) -> ptr {
 	call to_string_hl
 	add esp, 4
 	mov dword [ebp-12], eax"
+	return p
+}
+
+def concat(one:ptr,two:ptr) -> ptr {
+	ptr p = __cast_p(0)
+	__asm__ "push dword [ebp-12]
+	push dword [ebp-8]
+	call concat_strings_hl
+	add esp, 8
+	mov dword [ebp-16], eax"
 	return p
 }
