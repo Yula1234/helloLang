@@ -8,3 +8,13 @@ def fib(n:int) -> int {
 	__asm__ "mov dword [ebp-12], eax"
 	return res
 }
+
+def pow(num:int,p:int) -> int {
+	int counter = 0
+	int res = num
+	while(counter < p) {
+		res = res * num
+		counter = counter + 1
+	}
+	return res
+}
