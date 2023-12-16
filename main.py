@@ -1721,8 +1721,12 @@ global main
         self.bss += val + "\n"
 
     def compile(self,filename):
+        linkeds = ""
+        linked_list = ["stdhl"]
+        for i in linked_list:
+            linkeds += f"libs_o/{i}.o"
         comp_options = (f"NASM/nasm.exe --gprefix _ -f win32 ./{filename} -o ./out.o",
-                        "MinGW/bin/gcc.exe ./out.o ./libs_o/stdhl.o -o ./a.exe -m32")
+                        f"MinGW/bin/gcc.exe ./out.o {linkeds} -o ./a.exe -m32")
         for el in comp_options:
             subprocess.run(el)
         os.remove("out.o")
