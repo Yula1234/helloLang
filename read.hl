@@ -1,14 +1,8 @@
 #include lib.std
-#include lib.math
 
 def main(argc:int, argv:ptr) -> int {
-	int n = 0
-	while(n < 42) {
-		$prints("fibonacci at ")
-		$print(n)
-		$prints(" is - ")
-		$println($fib(n))
-		n = n + 1
-	}
+	ptr p = $calloc(1)
+	$__write(p, 20)
+	$print(**p)
 	return 0
 }

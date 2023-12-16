@@ -2,13 +2,14 @@ section .text
 
 global main
 
-	
 extern printf
 extern scanf
 extern malloc
 extern free
 extern ExitProcess@4
-
+extern calloc_hl
+extern write_mem
+extern read_mem
 
 nullptr:
 	; ptr nullptr()
@@ -199,17 +200,50 @@ throw:
 	add esp, 24
 	pop ebp
 	ret
-extern fib_hl
 
-fib:
-	; int fib(int n)
+calloc:
+	; ptr calloc(int size)
+	push ebp
+	mov ebp, esp
+	sub esp, 24
+	mov dword [ebp-8], ecx
+	push 0
+	pop eax
+	mov dword [ebp-12], eax
+	push dword [ebp-8]
+	call calloc_hl
+	add esp, 4
+	mov dword [ebp-12], eax
+	push dword [ebp-12]
+	pop eax
+	add esp, 24
+	pop ebp
+	ret
+
+__write:
+	; void __write(ptr p,int val)
+	push ebp
+	mov ebp, esp
+	sub esp, 24
+	mov dword [ebp-8], ecx
+	mov dword [ebp-12], edx
+	mov esi, dword [ebp-8]
+	mov edx, dword [ebp-12]
+	mov dword [esi], edx
+	xor eax, eax
+	add esp, 24
+	pop ebp
+	ret
+
+__read:
+	; int __read(ptr p)
 	push ebp
 	mov ebp, esp
 	sub esp, 24
 	mov dword [ebp-8], ecx
 	mov dword [ebp-12], dword 0
 	push dword [ebp-8]
-	call fib_hl
+	call read_mem
 	add esp, 4
 	mov dword [ebp-12], eax
 	push dword [ebp-12]
@@ -227,57 +261,26 @@ main:
 	mov dword [ebp-8], edx
 	mov edx, dword [ebp+12]
 	mov [ebp-12], edx
-	mov dword [ebp-16], dword 0
-	PREIF0:
-	push dword [ebp-16]
-	mov ebx, 42
-	pop eax
-	cmp eax, ebx
-	jl L3
-	jnl L4
-	L3:
-	push 1
-	jmp L5
-	L4:
-	push 0
-	L5:
-	pop eax
-	cmp eax, 0
-	je END2
-	jmp WHILE1
-	WHILE1:
-	push s_0
-	pop ecx
-	call prints
-	push dword [ebp-16]
-	pop ecx
-	call print
-	push s_1
-	pop ecx
-	call prints
-	push dword [ebp-16]
-	pop ecx
-	call fib
-	push eax
-	pop ecx
-	call println
-	push dword [ebp-16]
-	mov ebx, 1
-	pop eax
-	add eax, ebx
+	mov ecx, 1
+	call calloc
 	push eax
 	pop eax
 	mov dword [ebp-16], eax
-	jmp PREIF0
-	END2:
+	push dword [ebp-16]
+	pop ecx
+	mov edx, 20
+	call __write
+	push dword [ebp-16]
+	pop eax
+	push dword [eax]
+	pop ecx
+	call print
 	xor eax, eax
 	add esp, 16
 	pop ebp
 	ret
 
 section .data
-	s_0: db "fibonacci at ",0
-	s_1: db " is - ",0
 	numfmt: db "%d",0
 	charfmt: db "%c",0
 	strfmt: db "%s",0
