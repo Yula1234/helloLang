@@ -1,5 +1,6 @@
 cextern "strlen_hl"
 cextern "strcmp_hl"
+cextern "replace_hl"
 
 def strlen(p:ptr) -> int {
 	int res = 0
