@@ -186,6 +186,45 @@ class SyntaxChecker(object):
         self.pass_except("ID","missing array name")
         self.eat()
 
+    def check_class(self):
+        self.eat()
+        self.pass_except("ID","missing class name")
+        self.eat()
+        self.pass_except("{","missing open block {")
+        self.eat()
+
+    def check_object(self):
+        self.eat()
+        self.pass_except("ID","missing class name at create object")
+        self.eat()
+        self.pass_except("ID","missing object name at create object")
+        self.eat()
+        self.pass_except("(","missing ( at create object")
+        self.pass_args()
+
+    def check_field(self):
+        self.eat()
+        self.pass_except("ID","missing name at field declaration")
+        self.eat()
+        self.pass_except("=","missing = at field declaration")
+        self.eat()
+
+    def check_cextern(self):
+        self.eat()
+        self.pass_except("STRING","missing string literal after cextern")
+        self.eat()
+
+    def check_method(self):
+        self.eat()
+        self.pass_args()
+
+    def check_fieldset(self):
+        self.eat()
+        self.pass_except("CALL_METHOD","missing name at field assignment")
+        self.eat()
+        self.pass_except("=","missing = at field assignment")
+        self.eat()
+
     def check(self):
         while self.current():
             curtype = self.current().gettokentype()
@@ -211,6 +250,18 @@ class SyntaxChecker(object):
                 self.check_else()
             elif curtype == "ARRAY":
                 self.check_array()
+            elif curtype == "class":
+                self.check_class()
+            elif curtype == "GET":
+                self.check_object()
+            elif curtype == "FIELD":
+                self.check_field()
+            elif curtype == "CEXTERN":
+                self.check_cextern()
+            elif curtype == "CALL_METHOD":
+                self.check_method()
+            elif curtype == "@":
+                self.check_fieldset()
             else:
                 self.eat()
 
@@ -1369,8 +1420,8 @@ class Inter(object):
         lg.add("NOT","not")
         lg.add("==","==")
         lg.add("=",r"\=")
-        lg.add("TYPE", r"type\[[a-zA-Z0-9]+\]")
-        lg.add("TYPE", r"type\[[a-zA-Z0-9]\]")
+        lg.add("TYPE", r"type\[[a-zA-Z0-9\_]+\]")
+        lg.add("TYPE", r"type\[[a-zA-Z0-9\_]\]")
         lg.add("[",r"\[")
         lg.add("]",r"\]")
         lg.add("CLASS","class")
@@ -1616,14 +1667,14 @@ class Inter(object):
         def field_decl(p):
             return ast.Field({'name': p[1].value,'initval': p[3]})
 
-        @pg.production("expr : OBJECT ID GET ID expr",precedence="OBJECT")
+        @pg.production("expr : GET ID ID expr",precedence="OBJECT")
         def create_obj_stmnt(p):
-            if isinstance(p[4],list):
-                return ast.Object({'name': p[1].value,'class': p[3].value,
-                'args': p[4]})
+            if isinstance(p[3],list):
+                return ast.Object({'name': p[2].value,'class': p[1].value,
+                'args': p[3]})
             else:
-                return ast.Object({'name': p[1].value,'class': p[3].value,
-                'args': [p[4]]})
+                return ast.Object({'name': p[2].value,'class': p[1].value,
+                'args': [p[3]]})
 
         @pg.production("expr : ARRAY TYPE [ expr ] ID",precedence="ARRAY")
         def array_create_stmnt(p):
