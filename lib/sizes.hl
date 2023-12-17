@@ -1,6 +1,14 @@
-#def sizeof_i64, 	8
-#def sizeof_i32,	4
-#def sizeof_b, 		4
-#def sizeof_i16,	2
-#def sizeof_i8,		1
-#def sizeof_chr,	1
+#def sizeof_i64 	= 	8
+#def sizeof_i32 	=	4
+#def sizeof_b 		= 	4
+#def sizeof_i16 	=	2
+#def sizeof_i8  	= 	1
+#def sizeof_chr 	= 	1
+
+def sizeof(struct:ptr) -> int {
+	int size = 0
+	__asm__ "mov edx, dword [ebp-8] ; read ptr
+	mov edx, dword [edx] ; read first bytes sizeof of struct
+	mov dword [ebp-12], edx ; write to returned value"
+	return size
+}
