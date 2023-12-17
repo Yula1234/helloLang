@@ -123,7 +123,7 @@ class SyntaxChecker(object):
 
     def check_include(self):
         self.eat()
-        self.pass_except("ID","missing lib name at #include")
+        self.pass_except("CALL_METHOD","missing lib name at #include")
         self.eat()
 
     def check_asm(self):
@@ -379,7 +379,10 @@ class YulaObject(object):
         self.props = props
         
     def __getitem__(self,item):
-        return self.props[item]
+        try:
+            return self.props[item]
+        except:
+            pass
         
     def __setitem__(self,item,value):
         self.props[item] = value
@@ -389,6 +392,8 @@ class ast:
     class Integer(YulaObject):
         n = 0
         def eval(self):
+            if self['value'].bit_length() > 4:
+                inter.error(f"\tconstant {self['value']} is so big ({self['value'].bit_length()} bytes).")
             inter.output(f"\tpush {self['value']}")
             
             
@@ -453,7 +458,6 @@ class ast:
             
     class Mul(BinaryOp):
         def eval(self):
-            print(json.dumps(inter.Vars,indent=4))
             if not self.dop:
                 if isinstance(self.left,ast.Integer):
                     inter.output(f"\tmov eax, {self.left['value']}")
@@ -503,11 +507,14 @@ class ast:
                 self["lines"] = [node] + self["lines"]
             else:
                 self["lines"] = [node] + self["lines"]
+
         def get(self):
             return self["lines"]
+
         def run(self):
             for line in self.get():
                 line.eval()
+
         def eval(self):
             self.run()
 
@@ -516,7 +523,10 @@ class ast:
             if self["name"] in inter.Vars:
                 inter.error(f"NameError: cannot declare '{self['name']}', variable"+
                             f" already declared in '{inter.Vars[self['name']]['f']}' function")
-            inter.var_index += inter.sizes[self["type"]]
+            if self["type"] in inter.sizes:
+                inter.var_index += inter.sizes[self["type"]]
+            else:
+                inter.var_index += 4
             ofs = inter.var_index
             inter.Vars[self["name"]] = {}
             if "class" in self.props:
@@ -532,7 +542,7 @@ class ast:
             typechecker.pass_assign(self["name"],self["value"])
             value = self["value"]
             if isinstance(value,ast.Integer):
-                inter.output(f"\tmov {inter.sizeswords[inter.Vars[self['name']]['type']]} [ebp-{inter.Vars[self['name']]['offset']}], {inter.sizeswords[inter.Vars[self['name']]['type']]} {value['value']}")
+                inter.output(f"\tmov dword [ebp-{inter.Vars[self['name']]['offset']}], dword {value['value']}")
                 return
             if isinstance(value,ast.Char):
                 inter.output(f"\tmov {inter.sizeswords[inter.Vars[self['name']]['type']]} [ebp-{inter.Vars[self['name']]['offset']}], {inter.sizeswords[inter.Vars[self['name']]['type']]} {ord(value['value'])}")
@@ -557,6 +567,12 @@ class ast:
                     inter.output(f"\txor eax, eax")
                 else:
                     inter.output(f"\tmov eax, {self['value']['value']}")
+                inter.output(f"\tadd esp, {globals()['stack_alloc']}")
+                inter.output("\tpop ebp")
+                inter.output(f"\tret")
+                return
+            if isinstance(self["value"],ast.GetVar):
+                inter.output(f"\tmov eax, dword [ebp-{inter.Vars[self['value']['name']]['offset']}]")
                 inter.output(f"\tadd esp, {globals()['stack_alloc']}")
                 inter.output("\tpop ebp")
                 inter.output(f"\tret")
@@ -595,6 +611,9 @@ class ast:
             cs["type"] = self["type"]
             inter.callstack.append(cs)
             globals()["curfunc"] = self["name"]
+            if "curclass" in globals():
+                if globals()["curclass"]:
+                    inter.methods[self["name"]] = self
             inter.Functions[self["name"]] = {}
             inter.Functions[self["name"]]["args"] = self["args"]
             inter.Functions[self["name"]]["block"] = self["block"]
@@ -603,7 +622,10 @@ class ast:
             salloc = 0
             if not self["name"] == "main":
                 for i in self["args"]:
-                    salloc += inter.sizes[i[1]]
+                    if i[1] in inter.sizes:
+                        salloc += inter.sizes[i[1]]
+                    else:
+                        salloc += 4
             for i in offsets:
                 salloc += offsets[i]
             salloc = (salloc + 4) * 2
@@ -622,10 +644,7 @@ class ast:
                 for c,arg in enumerate(self["args"]):
                     reg = globals()["argslist"][c]
                     ast.DeclareVar({'name': arg[0],'type': arg[1],"line": None}).eval()
-                    if f"sizesreg{reg}" in dir(inter):
-                        inter.output(f"\tmov {inter.sizeswords[inter.Vars[arg[0]]['type']]} [ebp-{inter.Vars[arg[0]]['offset']}], " + f"{eval(f'inter.sizesreg{reg}')[inter.Vars[arg[0]]['type']]}")
-                    else:
-                        inter.output(f"\tmov {inter.sizeswords[inter.Vars[arg[0]]['type']]} [ebp-{inter.Vars[arg[0]]['offset']}], {reg}")
+                    inter.output(f"\tmov dword [ebp-{inter.Vars[arg[0]]['offset']}], {reg}")
             else:
                 if not self["args"] == []:
                     if len(self["args"]) > 0 and self["args"][0][0] == "argc":
@@ -663,7 +682,6 @@ class ast:
 
     class GetVar(YulaObject):
         def eval(self):
-            print(self.props)
             if self["name"] in inter.Vars:
                 inter.output(f"\tpush dword [ebp-{inter.Vars[self['name']]['offset']}]")
             elif self["name"] in inter.Consts:
@@ -802,10 +820,12 @@ class ast:
         def eval(self):
             name = self["name"]
             args = self["args"]
+            if "obj" in self.props:
+                self["args"] = [ast.GetVar({'name': self["obj"]})] + self["args"]
+                args = self["args"]
             ex_args = inter.Functions[name]["args"]
             if not len(args) == len(ex_args):
-                print(f"function {name} except {len(ex_args)}, got {len(args)}")
-                sys.exit(1)
+                inter.error(f"function {name} except {len(ex_args)}, got {len(args)}")
             typechecker.pass_args(name,self)
             argslist = globals()["argslist"]
             for c,arg in enumerate(args):
@@ -1200,9 +1220,17 @@ class ast:
             globals()["curclass"] = self
             inter.classes[self["name"]] = {}
             inter.classes[self["name"]]["fields"] = {}
-            self["block"].eval()
+            inter.classes[self["name"]]["methods"] = {}
+            for i in self["block"].get():
+                if isinstance(i,ast.Field):
+                    i.eval()
             for field in self.fields:
                 inter.classes[self["name"]]["fields"][field["name"]] = field
+            for i in self["block"].get():
+                if isinstance(i,ast.FuncDecl):
+                    i.eval()
+            inter.classes[self["name"]]["methods"] = inter.methods.copy()
+            inter.methods = {}
             globals()["curclass"] = None
             globals()["field_offset"] = 0
 
@@ -1216,7 +1244,7 @@ class ast:
     class Object(YulaObject):
         def eval(self):
             sizeof = (len(inter.classes[self["class"]]["fields"])*4)+4
-            ast.DeclareVar({'name': self["name"],'type': 'ptr','class': self['class']}).eval()
+            ast.DeclareVar({'name': self["name"],'type': f"type[{self['class']}]",'class': self['class']}).eval()
             inter.output(f"\tpush {sizeof}")
             inter.output(f"\tcall malloc")
             inter.output(f"\tadd esp, 4")
@@ -1239,14 +1267,29 @@ class ast:
                     inter.output(f"\tmov esi, dword [ebp-{inter.Vars[self['name']]['offset']}]")
                     inter.output(f"\tmov dword [esi+{inter.classes[self['class']]['fields'][field]['offset']}], ecx")
 
+            if "__"+self["class"]+"__" in inter.classes[self['class']]["methods"]:
+                inter.output(f"\t; __constructor__")
+                ast.CallMethod({'obj':self["name"],'item':"__"+self["class"]+"__",'args': self["args"]}).eval()
+
 
     class GetField(YulaObject):
         def eval(self):
-            field = inter.classes[inter.Vars[self["obj"]["name"]]["class"]]["fields"][self["item"]["name"]]
+            obj = inter.Vars[self["obj"]["name"]]
+            klass = None
+            if "class" in obj:
+                klass = inter.classes[obj["class"]]
+            elif globals()["curclass"]:
+                klass = inter.classes[globals()["curclass"]["name"]]
+            else:
+                klass = inter.classof(self["obj"]["name"])
+            field = klass["fields"][self["item"]["name"]]
             self["obj"].eval()
             inter.output(f"\tpop ecx")
-            print(field["name"],field["offset"])
             inter.output(f"\tpush dword [ecx+{field['offset']}]")
+
+    class CallMethod(YulaObject):
+        def eval(self):
+            ast.FuncCall({'name': self["item"],'args': self["args"],'obj': self["obj"]}).eval()
 
     class Cextern(YulaObject):
         def eval(self):
@@ -1254,6 +1297,33 @@ class ast:
                 inter.output(f"extern {self['func']}")
                 inter.externed.append(self["func"])
 
+    class FieldOf(YulaObject):
+        def eval(self):
+            ofs = inter.classes[self["class"]]["fields"][self["field"]]["offset"]
+            self["ptr"].eval()
+            inter.output(f"\tpop ecx")
+            inter.output(f"\tpush dword [ecx+{ofs}] ; fieldof(ptr, '{self['field']}','{self['class']}')")
+
+    class SetField(YulaObject):
+        def eval(self):
+            ofs = inter.classes[self["class"]]["fields"][self["field"]]["offset"]
+            self["ptr"].eval()
+            self["value"].eval()
+            inter.output(f"\tpop edx")
+            inter.output(f"\tpop ecx")
+            inter.output(f"\tmov dword [ecx+{ofs}], edx ; setfield(ptr, value, '{self['field']}','{self['class']}')")
+
+    class SetFieldAuto(YulaObject):
+        def eval(self):
+            name = self["name"]
+            field = self["field"]
+            ofs = inter.classof(name)["fields"][field]["offset"]
+            klass = inter.Vars[name]["type"].split("[")[1].split("]")[0]
+            ast.GetVar({'name': name}).eval()
+            self["value"].eval()
+            inter.output(f"\tpop edx")
+            inter.output(f"\tpop ecx")
+            inter.output(f"\tmov dword [ecx+{ofs}], edx ; setfield(ptr, value, '{field}','{klass}')")
 
 
 class Inter(object):
@@ -1267,6 +1337,7 @@ class Inter(object):
     sizesregedx = {"int32": "edx","int16":"dx","int8":"dl","int":"edx","string":"edx","char":"dl","ptr":"edx","bool":"edx"}
     sizesreg = {"int32": "eax","int16":"ax","int8":"al","int":"eax","string":"eax","char":"eax","ptr":"eax","bool":"eax"}
     var_index = 8
+    methods = {}
     classes = {}
     asms = {}
     code = ""
@@ -1298,6 +1369,8 @@ class Inter(object):
         lg.add("NOT","not")
         lg.add("==","==")
         lg.add("=",r"\=")
+        lg.add("TYPE", r"type\[[a-zA-Z0-9]+\]")
+        lg.add("TYPE", r"type\[[a-zA-Z0-9]\]")
         lg.add("[",r"\[")
         lg.add("]",r"\]")
         lg.add("CLASS","class")
@@ -1311,6 +1384,8 @@ class Inter(object):
         lg.add("WHILE","while")
         lg.add("CALL",r"\$")
         lg.add("DEF","def")
+        lg.add("FOF","fieldof")
+        lg.add("FSET","FieldSet")
         lg.add("TYPE","int32")
         lg.add("TYPE","int")
         lg.add("TYPE","string")
@@ -1320,6 +1395,7 @@ class Inter(object):
         lg.add("ARRAY", "array")
         lg.add("FOR","for")
         lg.add("IF","if")
+        lg.add("@","@")
         lg.add("ELSE","else")
         lg.add("ASM","__asm__")
         lg.add("GET",r"\%")
@@ -1338,7 +1414,11 @@ class Inter(object):
         lg.add("*",r"\*")
         lg.add("(",r"\(")
         lg.add(")",r"\)")
-        lg.add("ID",r"[a-zA-Z_\.][\.a-zA-Z0-9_]+")
+        lg.add("CALL_METHOD",r"[a-zA-Z_][a-zA-Z0-9_]+\.[a-zA-Z_][a-zA-Z0-9_]+")
+        lg.add("CALL_METHOD",r"[a-zA-Z0-9]\.[a-zA-Z_][a-zA-Z0-9_]+")
+        lg.add("CALL_METHOD",r"[a-zA-Z_][a-zA-Z0-9_]+\.[a-zA-Z0-9]")
+        lg.add("CALL_METHOD",r"[a-zA-Z0-9]\.[a-zA-Z0-9]")
+        lg.add("ID",r"[a-zA-Z_][a-zA-Z0-9_]+")
         lg.add("ID",r"[a-zA-Z0-9]")
         lg.ignore(" ")
         lg.ignore("\t")
@@ -1354,24 +1434,24 @@ class Inter(object):
                             "ELSE","BREAK",
                             "INCLUDE","ATTR","NOT","CONST","CASTP",
                             "ARRAY","FOR",";","CAST","OBJECT","CLASS",
-                            "FIELD","CEXTERN"
+                            "FIELD","CEXTERN","CALL_METHOD","FOF","FSET",
+                            "@"
                             ],
         precedence=[
             ("left", ["{","}"]),
             ("nonassoc", ["NL"]),
-            ("right", ["CLASS"]),
             ("right", ["FOR"]),
             ("nonassoc", [";"]),
             ("right", ["ID"]),
             ("right", ["ATTR"]),
             ("left", ["ARRAY"]),
-            ("left", ["TYPE","OBJECT"]),
+            ("left", ["TYPE","OBJECT","@"]),
             ("left", ["RETURN","FIELD"]),
-            ("right", ["ASM","BREAK","CEXTERN"]),
+            ("right", ["ASM","BREAK","CEXTERN","FSET"]),
             ("right", ["IF"]),
             ("right", ["ELSE"]),
             ("right", ["WHILE"]),
-            ("left", ["CALL"]),
+            ("left", ["CALL","CALL_METHOD"]),
             ("right", ["NOT"]),
             ("nonassoc", ["BOOL"]),
             ("left", ["=="]),
@@ -1379,11 +1459,12 @@ class Inter(object):
             ("right", ["INCLUDE"]),
             ("right", ["CONST"]),
             ("right", ["DEF"]),
+            ("right", ["CLASS"]),
             ("left", ["[","]"]),
             ("left", [",",":"]),
             ("left", ["+", "-"]),
             ("left", ["*", "/"]),
-            ("right", ["CAST","->"]),
+            ("right", ["CAST","->","FOF"]),
             ("right", ["GET","ADR"])
             ]
         )
@@ -1457,6 +1538,20 @@ class Inter(object):
         def annot_expr(p):
             return (p[0].value, p[2].value)
 
+        @pg.production("expr : FOF expr",precedence="FOF")
+        def field_of_expr(p):
+            return ast.FieldOf({'ptr': p[1][0],'field':p[1][1]['value'],'class':p[1][2]['value']})
+
+        @pg.production("expr : FSET expr",precedence="FOF")
+        def field_set_expr(p):
+            return ast.SetField({'ptr': p[1][0],'value': p[1][1],'field':p[1][2]['value'],'class':p[1][3]['value']})
+
+        @pg.production("expr : @ CALL_METHOD = expr",precedence="@")
+        def field_set_auto_expr(p):
+            name = p[1].value.split(".")[0]
+            field = p[1].value.split(".")[1]
+            return ast.SetFieldAuto({'name': name,'value': p[3],'field':field})
+
         @pg.production("expr : expr , expr",precedence=",")
         def dot_expr(p):
             if isinstance(p[0],list):
@@ -1523,8 +1618,12 @@ class Inter(object):
 
         @pg.production("expr : OBJECT ID GET ID expr",precedence="OBJECT")
         def create_obj_stmnt(p):
-            return ast.Object({'name': p[1].value,'class': p[3].value,
+            if isinstance(p[4],list):
+                return ast.Object({'name': p[1].value,'class': p[3].value,
                 'args': p[4]})
+            else:
+                return ast.Object({'name': p[1].value,'class': p[3].value,
+                'args': [p[4]]})
 
         @pg.production("expr : ARRAY TYPE [ expr ] ID",precedence="ARRAY")
         def array_create_stmnt(p):
@@ -1548,6 +1647,15 @@ class Inter(object):
         def getclassitem(p):
             return ast.GetField({'obj': p[0],'item': p[2]})
 
+        @pg.production("expr : CALL_METHOD expr",precedence="CALL_METHOD")
+        def call_classmethod(p):
+            obj = p[0].value.split(".")[0]
+            m = p[0].value.split(".")[1]
+            if isinstance(p[1],list):
+                return ast.CallMethod({'obj': obj,'item': m,'args': p[1]})
+            else:
+                return ast.CallMethod({'obj': obj,'item': m,'args': [p[1]]})
+
 
         @pg.production("expr : DEF ID expr -> TYPE { expr }",precedence="DEF")
         def func_decl(p):
@@ -1557,7 +1665,7 @@ class Inter(object):
             return ast.FuncDecl({'block': p[6],'type': p[4].value,
                                 'args': p[2],'name': p[1].value})
 
-        @pg.production("expr : INCLUDE ID",precedence="INCLUDE")
+        @pg.production("expr : INCLUDE CALL_METHOD",precedence="INCLUDE")
         def include_stmnt(p):
             return ast.Include({'file': p[1].value})
 
@@ -1740,6 +1848,8 @@ global main
                             f"MinGW/bin/gcc.exe ./out.o {linkeds}-o ./a.exe -m32")
         for el in comp_options:
             subprocess.run(el)
+        if not args.asm:
+            os.remove("output.asm")
         os.remove("out.o")
         print("compiled")
 
@@ -1754,12 +1864,16 @@ global main
         print(res)
         sys.exit(0)
 
+    def classof(self,varname):
+        return self.classes[self.Vars[varname]["type"].split("[")[1].split("]")[0]]
+
 
 inter = Inter()
 
 prs = argparse.ArgumentParser(prog="helloLang")
 prs.add_argument("filename")
 prs.add_argument("-o","--output")
+prs.add_argument("-a","--asm",action="store_true")
 
 inter.init_text()
 prog = inter.compare(open(prs.parse_args().filename,"r").read())
