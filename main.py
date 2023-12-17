@@ -596,11 +596,11 @@ class ast:
                 inter.output(f"\tmov dword [ebp-{inter.Vars[self['name']]['offset']}], dword {value['value']}")
                 return
             if isinstance(value,ast.Char):
-                inter.output(f"\tmov {inter.sizeswords[inter.Vars[self['name']]['type']]} [ebp-{inter.Vars[self['name']]['offset']}], {inter.sizeswords[inter.Vars[self['name']]['type']]} {ord(value['value'])}")
+                inter.output(f"\tmov dword [ebp-{inter.Vars[self['name']]['offset']}], dword {ord(value['value'])}")
                 return
             value.eval()
             inter.output("\tpop eax")
-            inter.output(f"\tmov {inter.sizeswords[inter.Vars[self['name']]['type']]} [ebp-{inter.Vars[self['name']]['offset']}], {inter.sizesreg[inter.Vars[self['name']]['type']]}")
+            inter.output(f"\tmov dword [ebp-{inter.Vars[self['name']]['offset']}], eax")
 
     @classmethod
     def getval(self, yo):
@@ -1855,7 +1855,10 @@ class Inter(object):
                 for i in tmp:
                     res[i] = tmp[i]
             elif isinstance(el,ast.DeclareVar):
-                res[el["name"]] = inter.sizes[el["type"]]
+                if el["type"] in inter.sizes:
+                    res[el["name"]] = inter.sizes[el["type"]]
+                else:
+                    res[el["name"]] = 4
             elif isinstance(el,ast.Array):
                 res[el["name"]] = el["size"]["value"]*inter.sizes[el["type"]]
             elif isinstance(el,ast.Object):
