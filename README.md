@@ -42,3 +42,50 @@ for compile using gcc and nasm
 ```cmd
 python main.py file.hl -o output.exe
 ```
+
+
+
+# Tutorials
+
+## functions
+
+* staticaly typed
+* so fast
+
+```hl
+def foo(arg1:int,arg2:int) -> int {
+    return arg1 + arg2
+}
+```
+
+schema:
+    def NAME(ARGS) -> ReturnType {
+        body
+    }
+
+## variables
+
+* staticaly typed
+
+```hl
+int x = 0
+x = 10
+```
+
+schema:
+    TYPE NAME = EXPR
+    NAME = EXPR
+
+## if
+
+```hl
+int x = 10
+if(x < 12) {
+    body
+}
+```
+
+schema:
+    IF(CONDITION) {
+        body
+    }
