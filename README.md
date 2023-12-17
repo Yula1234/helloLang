@@ -71,11 +71,11 @@ schema:
 int x = 0
 x = 10
 ```
-
+```c
 schema:
     TYPE NAME = EXPR
     NAME = EXPR
-
+```
 ## if
 
 ```hl
@@ -84,8 +84,9 @@ if(x < 12) {
     body
 }
 ```
-
+```c
 schema:
     IF(CONDITION) {
         body
     }
+```
