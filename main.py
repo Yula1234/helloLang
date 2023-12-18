@@ -7,6 +7,7 @@ import random
 import time
 import argparse
 import json
+import copy
 
 from similar_text import similar_text
 from rply import LexerGenerator
@@ -78,12 +79,6 @@ class SyntaxChecker(object):
                 "laration")
         self.eat()
         self.check_args_annot()
-        self.pass_except("->","missing -> at function declaration")
-        self.eat()
-        self.pass_except("TYPE","missing function type after ->")
-        self.eat()
-        self.pass_except("{","missing { open block at function dec"+
-                "laration")
         self.eat()
 
 
@@ -232,6 +227,10 @@ class SyntaxChecker(object):
                 self.check_func_declaration()
             elif curtype == "CALL":
                 self.check_func_call()
+            elif curtype == "FROM":
+                self.eat()
+                self.eat()
+                self.eat()
             elif curtype == "INCLUDE":
                 self.check_include()
             elif curtype == "ASM":
@@ -308,6 +307,15 @@ class typechecker:
                 return
             vartype2 = inter.Vars[obj["name"]]["type"]
             if not vartype == vartype2:
+                if vartype.startswith("type[") and vartype2.startswith("type["):
+                    klass = vartype.split("[")[1].split("]")[0]
+                    klass2 = vartype2.split("[")[1].split("]")[0]
+                    if not klass == klass2:
+                        if "parent" in inter.classes[klass2]:
+                            if f"type[{inter.classes[klass2]['parent']}]" == vartype:
+                                return
+                        else:
+                            return
                 if vartype in self.int_types and not vartype2 in self.int_types:
                     self.TypeError(f"TypeError at return: " + 
                                 f"except type - {vartype}, got - {vartype2}")
@@ -354,6 +362,15 @@ class typechecker:
                 return
             vartype2 = inter.Vars[obj["name"]]["type"]
             if not vartype == vartype2:
+                if vartype.startswith("type[") and vartype2.startswith("type["):
+                    klass = vartype.split("[")[1].split("]")[0]
+                    klass2 = vartype2.split("[")[1].split("]")[0]
+                    if not klass == klass2:
+                        if "parent" in inter.classes[klass2]:
+                            if f"type[{inter.classes[klass2]['parent']}]" == vartype:
+                                return
+                    else:
+                        return
                 self.TypeError(f"TypeError at variable assignment: " + 
                                 f"except type - {vartype}, got - {vartype2}")
         elif isinstance(obj,ast.GetArrItem):
@@ -407,6 +424,15 @@ class typechecker:
                         return 
                     if vartype == "string" and vartype2 == "ptr":
                         return
+                    if vartype.startswith("type[") and vartype2.startswith("type["):
+                        klass = vartype.split("[")[1].split("]")[0]
+                        klass2 = vartype2.split("[")[1].split("]")[0]
+                        if not klass == klass2:
+                            if "parent" in inter.classes[klass2]:
+                                if f"type[{inter.classes[klass2]['parent']}]" == vartype:
+                                    return
+                        else:
+                            return
                     self.TypeError(f"TypeError at function '{funcname}' call (arg {c}): " + 
                                     f"except type - {vartype}, got - {vartype2}")
             elif isinstance(obj,ast.GetArrItem):
@@ -443,9 +469,11 @@ class ast:
     class Integer(YulaObject):
         n = 0
         def eval(self):
-            if self['value'].bit_length() > 4:
-                inter.error(f"\tconstant {self['value']} is so big ({self['value'].bit_length()} bytes).")
+            if self['value'].bit_length() > 32:
+                inter.error(f"\tconstant {self['value']} is so big ({self['value'].bit_length()} bits).")
             inter.output(f"\tpush {self['value']}")
+        def __repr__(self):
+            return f"INT:{self['value']}"
             
             
     class Statement(YulaObject):
@@ -569,6 +597,9 @@ class ast:
         def eval(self):
             self.run()
 
+        def __repr__(self):
+            return f"*BLOCK*"
+
     class DeclareVar(YulaObject):
         def eval(self):
             if self["name"] in inter.Vars:
@@ -613,6 +644,11 @@ class ast:
     class Return(YulaObject):
         def eval(self):
             typechecker.pass_return(globals()["curfunc"],self["value"])
+            if globals()["curfunc"] == "main":
+                for i in range(int(inter.objects_c/4)):
+                    inter.output(f"\tpush dword [{globals()['OBJECTS_MEM']}+{i*4}]")
+                    inter.output(f"\tcall free")
+                    inter.output(f"\tadd esp, 4")
             if isinstance(self["value"],ast.Integer):
                 if str(self["value"]["value"]) == "0":
                     inter.output(f"\txor eax, eax")
@@ -721,6 +757,9 @@ class ast:
                     f"\tdon't use big local variables or use $alloc in std lib")
             inter.var_index = 4
             del inter.callstack[-1]
+
+        def __repr__(self):
+            return f"{self['type']} {self['name']}{self['args']}"
 
 
     class Asm(YulaObject):
@@ -874,6 +913,26 @@ class ast:
             if "obj" in self.props:
                 self["args"] = [ast.GetVar({'name': self["obj"]})] + self["args"]
                 args = self["args"]
+                klass = None
+                obj = inter.Vars[self["obj"]]
+                if "class" in obj:
+                    klass = inter.classes[obj["class"]]
+                elif globals()["curclass"]:
+                    klass = inter.classes[globals()["curclass"]["name"]]
+                else:
+                    if not obj["type"].startswith("type["):
+                        inter.error("\tcan't get field of not class")
+                    klass = inter.classof(self["obj"]["name"])
+                self["name"] = inter.classescodes[klass["name"]] + self["name"]
+                if not self["name"] in inter.Functions:
+                    if "parent" in klass:
+                        # get parent function
+                        parent = inter.classescodes[klass["parent"]]
+                        self["name"] = parent + name
+                name = self["name"]
+                if not name in inter.Functions:
+                    inter.error(f"\tcan't call {self['name']} method, class {klass['name']} because it dont have with method")
+
             ex_args = inter.Functions[name]["args"]
             if not len(args) == len(ex_args):
                 inter.error(f"function {name} except {len(ex_args)}, got {len(args)}")
@@ -1270,8 +1329,15 @@ class ast:
             globals()["field_offset"] = 4
             globals()["curclass"] = self
             inter.classes[self["name"]] = {}
-            inter.classes[self["name"]]["fields"] = {}
-            inter.classes[self["name"]]["methods"] = {}
+            code = f"_class_{random.randint(999,99999)}A{random.randint(999,99999)}"
+            inter.classescodes[self["name"]] = code
+            if self["parent"]:
+                inter.classes[self["name"]] = copy.deepcopy(inter.classes[self["parent"]])
+                inter.classes[self["name"]]["parent"] = self["parent"]
+            else:
+                inter.classes[self["name"]]["fields"] = {}
+                inter.classes[self["name"]]["methods"] = {}
+            inter.classes[self["name"]]["name"] = self["name"]
             for i in self["block"].get():
                 if isinstance(i,ast.Field):
                     i.eval()
@@ -1279,9 +1345,10 @@ class ast:
                 inter.classes[self["name"]]["fields"][field["name"]] = field
             for i in self["block"].get():
                 if isinstance(i,ast.FuncDecl):
+                    i["name"] = code + i["name"]
                     i.eval()
-            inter.classes[self["name"]]["methods"] = inter.methods.copy()
-            inter.methods = {}
+            inter.classes[self["name"]]["methods"] = copy.deepcopy(inter.methods)
+            inter.methods = {}.copy()
             globals()["curclass"] = None
             globals()["field_offset"] = 0
 
@@ -1292,6 +1359,9 @@ class ast:
             globals()["curclass"].fields.append(self)
             globals()["field_offset"] += 4
 
+        def __repr__(self):
+            return f"FIELD:{self['name']}"
+
     class Object(YulaObject):
         def eval(self):
             sizeof = (len(inter.classes[self["class"]]["fields"])*4)+4
@@ -1299,6 +1369,8 @@ class ast:
             inter.output(f"\tpush {sizeof}")
             inter.output(f"\tcall malloc")
             inter.output(f"\tadd esp, 4")
+            inter.output(f"\tmov dword [{globals()['OBJECTS_MEM']}+{inter.objects_c}], eax")
+            inter.objects_c += 4
             inter.output(f"\tmov dword [ebp-{inter.Vars[self['name']]['offset']}], eax")
             inter.output(f"\t; put sizeof class in first 4 bytes")
             inter.output(f"\tmov dword [eax], dword {sizeof-4}")
@@ -1317,8 +1389,13 @@ class ast:
                     inter.output(f"\tpop ecx")
                     inter.output(f"\tmov esi, dword [ebp-{inter.Vars[self['name']]['offset']}]")
                     inter.output(f"\tmov dword [esi+{inter.classes[self['class']]['fields'][field]['offset']}], ecx")
-
-            if "__"+self["class"]+"__" in inter.classes[self['class']]["methods"]:
+            code = inter.classescodes[self["class"]]
+            if "parent" in inter.classes[self['class']]:
+                codeparent = inter.classescodes[inter.classes[self['class']]["parent"]]
+                if codeparent+"__"+inter.classes[self['class']]["parent"]+"__" in inter.classes[inter.classes[self['class']]["parent"]]["methods"]:
+                    inter.output(f"\t; parent __constructor__")
+                    ast.CallMethod({'obj':self["name"],'item':"__"+inter.classes[self['class']]["parent"]+"__",'args': self["args"]}).eval()
+            if code+"__"+self["class"]+"__" in inter.classes[self['class']]["methods"]:
                 inter.output(f"\t; __constructor__")
                 ast.CallMethod({'obj':self["name"],'item':"__"+self["class"]+"__",'args': self["args"]}).eval()
 
@@ -1327,11 +1404,39 @@ class ast:
         def eval(self):
             obj = inter.Vars[self["obj"]["name"]]
             klass = None
+            if isinstance(self["item"],ast.GetField):
+                item = self["item"]["obj"]["name"]
+                item2 = self["item"]["item"]["name"]
+                item = ast.GetVar({'name':item})
+                item2 = ast.GetVar({'name': item2})
+                if "class" in obj:
+                    klass = inter.classes[obj["class"]]
+                elif globals()["curclass"]:
+                    klass = inter.classes[globals()["curclass"]["name"]]
+                else:
+                    if not obj["type"].startswith("type["):
+                        inter.error("\tcan't get field of not class")
+                    klass = inter.classof(self["obj"]["name"])
+                field = klass["fields"][item["name"]]
+                kls = field["type"].split("[")[1].split("]")[0]
+                kls = inter.classes[kls]
+                self["obj"].eval()
+                inter.output(f"\tpop ecx")
+                inter.output(f"\tpush dword [ecx+{field['offset']}]")
+                inter.output(f"\tpop ecx")
+                if str(item2["name"]) == "None":
+                    inter.error("\tcan't get field of 4 more times (x->x->x->x)")
+                field2 = kls["fields"][item2["name"]]
+                inter.output(f"\tadd ecx, {field['offset']}")
+                inter.output(f"\tpush dword [ecx]")
+                return
             if "class" in obj:
                 klass = inter.classes[obj["class"]]
             elif globals()["curclass"]:
                 klass = inter.classes[globals()["curclass"]["name"]]
             else:
+                if not obj["type"].startswith("type["):
+                    inter.error("\tcan't get field of not class")
                 klass = inter.classof(self["obj"]["name"])
             field = klass["fields"][self["item"]["name"]]
             self["obj"].eval()
@@ -1367,7 +1472,7 @@ class ast:
     class SetFieldAuto(YulaObject):
         def eval(self):
             name = self["name"]
-            field = self["field"]
+            field = self["field"]  
             ofs = inter.classof(name)["fields"][field]["offset"]
             klass = inter.Vars[name]["type"].split("[")[1].split("]")[0]
             ast.GetVar({'name': name}).eval()
@@ -1375,6 +1480,21 @@ class ast:
             inter.output(f"\tpop edx")
             inter.output(f"\tpop ecx")
             inter.output(f"\tmov dword [ecx+{ofs}], edx ; setfield(ptr, value, '{field}','{klass}')")
+
+    class FromInclude(YulaObject):
+        def eval(self):
+            ilist = self["list"]
+            if not isinstance(ilist,list):
+                ilist = [ilist]
+            for i in range(len(ilist)):
+                ilist[i] = ilist[i]["value"]
+            inc = inter.compare_lib(open(self["file"].replace(".","/")+".hl","r").read(),self["file"])
+            for i in inc.get():
+                if isinstance(i,ast.FuncDecl) or isinstance(i,ast.Class) or isinstance(i,ast.Const):
+                    if i["name"] in ilist:
+                        i.eval()
+                else:
+                    i.eval()
 
 
 class Inter(object):
@@ -1388,6 +1508,7 @@ class Inter(object):
     sizesregedx = {"int32": "edx","int16":"dx","int8":"dl","int":"edx","string":"edx","char":"dl","ptr":"edx","bool":"edx"}
     sizesreg = {"int32": "eax","int16":"ax","int8":"al","int":"eax","string":"eax","char":"eax","ptr":"eax","bool":"eax"}
     var_index = 8
+    classescodes = {}
     methods = {}
     classes = {}
     asms = {}
@@ -1397,6 +1518,7 @@ class Inter(object):
     Vars = {}
     externed = []
     lab_index = 0
+    objects_c = 0
     strs = {r'%d': "numfmt",r'%s':"strfmt"}
     str_index = 0
     Functions = {}
@@ -1444,6 +1566,7 @@ class Inter(object):
         lg.add("TYPE", "ptr")
         lg.add("TYPE", "bool")
         lg.add("ARRAY", "array")
+        lg.add("FROM","from")
         lg.add("FOR","for")
         lg.add("IF","if")
         lg.add("@","@")
@@ -1486,7 +1609,7 @@ class Inter(object):
                             "INCLUDE","ATTR","NOT","CONST","CASTP",
                             "ARRAY","FOR",";","CAST","OBJECT","CLASS",
                             "FIELD","CEXTERN","CALL_METHOD","FOF","FSET",
-                            "@"
+                            "@","FROM"
                             ],
         precedence=[
             ("left", ["{","}"]),
@@ -1508,6 +1631,7 @@ class Inter(object):
             ("left", ["=="]),
             ("right", ["CASTP"]),
             ("right", ["INCLUDE"]),
+            ("right", ["FROM"]),
             ("right", ["CONST"]),
             ("right", ["DEF"]),
             ("right", ["CLASS"]),
@@ -1523,6 +1647,8 @@ class Inter(object):
         
         @pg.production("expr : NUMBER")
         def number_expr(p):
+            if int(p[0].value).bit_length() > 32:
+                inter.perror(f"ValueError: constant {p[0].value} is so big for 32 bits",p[0])
             return ast.Integer({'value': int(p[0].value)})
 
         @pg.production("expr : CHAR")
@@ -1566,7 +1692,11 @@ class Inter(object):
         @pg.production("expr : ( TYPE )",precedence="ADR")
         def noargs_expr(p):
             if not p[1].value == "void":
-                inter.error("expression ( TYPE ) except void type")
+                inter.perror("ValueError: expression ( TYPE ) except void type")
+            return []
+
+        @pg.production("expr : ( )",precedence="ADR")
+        def noargs_expr_empty_brackets(p):
             return []
 
         @pg.production("expr : ID [ expr ]",precedence="[")
@@ -1663,9 +1793,9 @@ class Inter(object):
         def attr_stmnt(p):
             return p[1]
 
-        @pg.production("expr : FIELD ID = expr",precedence="FIELD")
+        @pg.production("expr : TYPE FIELD ID = expr",precedence="FIELD")
         def field_decl(p):
-            return ast.Field({'name': p[1].value,'initval': p[3]})
+            return ast.Field({'name': p[2].value,'initval': p[4],'type':p[0].value})
 
         @pg.production("expr : GET ID ID expr",precedence="OBJECT")
         def create_obj_stmnt(p):
@@ -1692,7 +1822,11 @@ class Inter(object):
 
         @pg.production("expr : CLASS ID { expr }",precedence="CLASS")
         def class_decl_stmnt(p):
-            return ast.Class({'name': p[1].value,'block': p[3]})
+            return ast.Class({'name': p[1].value,'block': p[3],'parent':None})
+
+        @pg.production("expr : CLASS ID : ID { expr }",precedence="CLASS")
+        def class_decl_with_parent_stmnt(p):
+            return ast.Class({'name': p[1].value,'block': p[5],'parent':p[3].value})
 
         @pg.production("expr : expr -> expr ",precedence="->")
         def getclassitem(p):
@@ -1716,9 +1850,36 @@ class Inter(object):
             return ast.FuncDecl({'block': p[6],'type': p[4].value,
                                 'args': p[2],'name': p[1].value})
 
+        @pg.production("expr : DEF ID expr { expr }",precedence="DEF")
+        def void_func_decl(p):
+            if not isinstance(p[2],list):
+                return ast.FuncDecl({'block': p[4],'type': 'void',
+                                'args': [p[2]],'name': p[1].value})
+            
+            return ast.FuncDecl({'block': p[4],'type': 'void',
+                                'args': p[2],'name': p[1].value})
+
         @pg.production("expr : INCLUDE CALL_METHOD",precedence="INCLUDE")
         def include_stmnt(p):
             return ast.Include({'file': p[1].value})
+
+        @pg.production("expr : INCLUDE ID",precedence="INCLUDE")
+        def include_stmnt_once(p):
+            return ast.Include({'file': p[1].value})
+
+        @pg.production("expr : FROM CALL_METHOD INCLUDE expr",precedence="FROM")
+        def include_from_stmnt(p):
+            if isinstance(p[3],list):
+                return ast.FromInclude({'file': p[1].value,'list':p[3]})
+            else:
+                return ast.FromInclude({'file': p[1].value,'list':[p[3]]})
+
+        @pg.production("expr : FROM ID INCLUDE expr",precedence="FROM")
+        def include_from_once_stmnt(p):
+            if isinstance(p[3],list):
+                return ast.FromInclude({'file': p[1].value,'list':p[3]})
+            else:
+                return ast.FromInclude({'file': p[1].value,'list':[p[3]]})
 
         @pg.production("expr : BREAK",precedence="BREAK")
         def break_stmnt(p):
@@ -1764,6 +1925,12 @@ class Inter(object):
         @pg.production("expr : RETURN expr",precedence="RETURN")
         def return_stmnt(p):
             return ast.Return({'value': p[1]})
+
+        @pg.production("expr : RETURN TYPE",precedence="RETURN")
+        def return_stmnt_void(p):
+            if not p[1].value == "void":
+                inter.error("\tcan't return type non void")
+            return ast.Return({'value': ast.Integer({'value': 0})})
             
                         
         @pg.production("expr : expr expr")
@@ -1872,6 +2039,8 @@ class Inter(object):
         self.code += r"""section .text
 
 global main
+extern malloc
+extern free
 
 """
 
@@ -1918,9 +2087,21 @@ global main
         print(res)
         sys.exit(0)
 
+    def loc_of(self,tok):
+        loc = tok.source_pos
+        return f"{loc.lineno+1}.{loc.colno-1}"
+
+    def perror(self,msg,tok):
+        one = msg.split(":")[0]
+        two = msg.split(":")[1]
+        res = f"{one} at {self.loc_of(tok)}:{two}"
+        print(res)
+        sys.exit(0)
+
     def classof(self,varname):
         return self.classes[self.Vars[varname]["type"].split("[")[1].split("]")[0]]
 
+globals()["OBJECTS_MEM"] = f"A{random.randint(1000,999999)}ME{random.randint(0,333)}M"
 
 inter = Inter()
 
@@ -1928,15 +2109,31 @@ prs = argparse.ArgumentParser(prog="helloLang")
 prs.add_argument("filename")
 prs.add_argument("-o","--output")
 prs.add_argument("-a","--asm",action="store_true")
+prs.add_argument("-p","--profiler",action="store_true")
 
 inter.init_text()
 prog = inter.compare(open(prs.parse_args().filename,"r").read())
 prog.eval()
+if prs.parse_args().profiler:
+    res = "functions:\n\n"
+    res += str(inter.Functions).replace(",",",\n").replace("}","}\n")
+    res += "\n\nclasses:\n\n"
+    res += str(inter.classes).replace(",",",\n").replace("}","}\n")
+    res += "\n\nclassescodes:\n\n"
+    res += str(inter.classescodes).replace(",",",\n").replace("}","}\n")
+    res += "\n\nconsts:\n\n"
+    res += str(inter.Consts).replace(",",",\n").replace("}","}\n")
+    res += "\n\nstrings:\n\n"
+    res += str(inter.strs).replace(",",",\n").replace("}","}\n")
+    res += "\n\ncexterns:\n\n"
+    res += str(inter.externed).replace(",",",\n").replace("}","}\n")
+    open("profile.txt","w").write(res)
 inter._add_data('\t' + r'numfmt: db "%d",0')
 inter._add_data('\t' + r'charfmt: db "%c",0')
 inter._add_data('\t' + r'strfmt: db "%s",0')
 inter._add_data('\t' + r'newline: db 10,0')
 inter.init_data()
+inter._add_bss(f"\t{globals()['OBJECTS_MEM']}: resb {inter.objects_c}")
 inter.init_bss()
 
 inter.save_asm()
