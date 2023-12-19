@@ -15,6 +15,7 @@ from rply import ParserGenerator
 from rply.token import Token
 from functools import cache
 
+is_wrapper_c = False
 
 argslist = "ecx.edx.ebx.edi.esi.r8d.r9d.r10d".split(".")
 
@@ -251,16 +252,10 @@ class SyntaxChecker(object):
                 self.check_array()
             elif curtype == "class":
                 self.check_class()
-            elif curtype == "GET":
-                self.check_object()
             elif curtype == "FIELD":
                 self.check_field()
             elif curtype == "CEXTERN":
                 self.check_cextern()
-            elif curtype == "CALL_METHOD":
-                self.check_method()
-            elif curtype == "@":
-                self.check_fieldset()
             else:
                 self.eat()
 
@@ -314,7 +309,14 @@ class typechecker:
                         if "parent" in inter.classes[klass2]:
                             if f"type[{inter.classes[klass2]['parent']}]" == vartype:
                                 return
-                        else:
+                    else:
+                        return
+                elif vartype2.startswith("type["):
+                    klass2 = vartype2.split("[")[1].split("]")[0]
+                    if "__get__" in inter.classes[klass2]["methods"]:
+                        mname = inter.classescodes[klass2]+"__get__"
+                        vartype2 = inter.Functions[mname]["type"]
+                        if vartype == vartype2:
                             return
                 if vartype in self.int_types and not vartype2 in self.int_types:
                     self.TypeError(f"TypeError at return: " + 
@@ -371,6 +373,13 @@ class typechecker:
                                 return
                     else:
                         return
+                elif vartype2.startswith("type["):
+                    klass2 = vartype2.split("[")[1].split("]")[0]
+                    if "__get__" in inter.classes[klass2]["methods"]:
+                        mname = inter.classescodes[klass2]+"__get__"
+                        vartype2 = inter.Functions[mname]["type"]
+                        if vartype == vartype2:
+                            return
                 self.TypeError(f"TypeError at variable assignment: " + 
                                 f"except type - {vartype}, got - {vartype2}")
         elif isinstance(obj,ast.GetArrItem):
@@ -433,6 +442,13 @@ class typechecker:
                                     return
                         else:
                             return
+                    elif vartype2.startswith("type["):
+                        klass2 = vartype2.split("[")[1].split("]")[0]
+                        if inter.classescodes[klass2]+"__get__" in inter.classes[klass2]["methods"]:
+                            mname = inter.classescodes[klass2]+"__get__"
+                            vartype2 = inter.Functions[mname]["type"]
+                            if vartype == vartype2:
+                                return
                     self.TypeError(f"TypeError at function '{funcname}' call (arg {c}): " + 
                                     f"except type - {vartype}, got - {vartype2}")
             elif isinstance(obj,ast.GetArrItem):
@@ -616,6 +632,7 @@ class ast:
             inter.Vars[self["name"]]["type"] = self["type"]
             inter.Vars[self["name"]]["f"] = globals()["curfunc"]
             inter.Vars[self["name"]]["offset"] = ofs
+            inter.Vars[self["name"]]["uses"] = 0
             if "value" in self.props:
                 ast.AssignVar({'name': self["name"],'value': self['value']}).eval()
 
@@ -644,11 +661,12 @@ class ast:
     class Return(YulaObject):
         def eval(self):
             typechecker.pass_return(globals()["curfunc"],self["value"])
-            if globals()["curfunc"] == "main":
-                for i in range(int(inter.objects_c/4)):
-                    inter.output(f"\tpush dword [{globals()['OBJECTS_MEM']}+{i*4}]")
-                    inter.output(f"\tcall free")
-                    inter.output(f"\tadd esp, 4")
+            for i in copy.deepcopy(inter.Vars.copy()):
+                if "class" in inter.Vars[i]:
+                    if not inter.Vars[i]["uses"] > 1:
+                        ast.GetVar({'name': i}).eval()
+                        inter.output(f"\tcall free")
+                        inter.output(f"\tadd esp, 4")
             if isinstance(self["value"],ast.Integer):
                 if str(self["value"]["value"]) == "0":
                     inter.output(f"\txor eax, eax")
@@ -746,12 +764,7 @@ class ast:
             inter.Functions[self["name"]]["block"].eval()
             if self["type"] == "void":
                 ast.Return({'value': ast.Integer({'value': 0})}).eval()
-            for i in inter.Vars.copy():
-                try:
-                    if inter.Vars[i]["f"] == self["name"]:
-                        del inter.Vars[i]
-                except:
-                    pass
+            inter.Vars = {}.copy()
             if inter.var_index >= 8012:
                 inter.error(f"you allocate in stack {inter.var_index*2} bytes\n"+
                     f"\tdon't use big local variables or use $alloc in std lib")
@@ -773,6 +786,13 @@ class ast:
     class GetVar(YulaObject):
         def eval(self):
             if self["name"] in inter.Vars:
+                if "class" in inter.Vars[self["name"]] and globals()["is_wrapper_c"] == False:
+                    if inter.classescodes[inter.Vars[self["name"]]["class"]] + "__get__" in inter.classes[inter.Vars[self["name"]]["class"]]["methods"]:
+                        ast.CallMethod({'obj':self["name"],'item':'__get__','args':[]}).eval()
+                        inter.Vars[self['name']]["uses"] += 1
+                        globals()["is_wrapper_c"] = False
+                        return
+                inter.Vars[self['name']]["uses"] += 1
                 inter.output(f"\tpush dword [ebp-{inter.Vars[self['name']]['offset']}]")
             elif self["name"] in inter.Consts:
                 inter.Consts[self["name"]].eval()
@@ -911,7 +931,9 @@ class ast:
             name = self["name"]
             args = self["args"]
             if "obj" in self.props:
+                globals()["is_wrapper_c"] = True
                 self["args"] = [ast.GetVar({'name': self["obj"]})] + self["args"]
+                globals()["is_wrapper_c"] = True
                 args = self["args"]
                 klass = None
                 obj = inter.Vars[self["obj"]]
@@ -948,6 +970,7 @@ class ast:
             inter.output(f"\tcall {name}")
             if not inter.Functions[name]["type"] == "void":
                 inter.output(f"\tpush eax")
+            globals()["is_wrapper_c"] = False
 
 
     class Equal(BinaryOp):
@@ -1369,8 +1392,6 @@ class ast:
             inter.output(f"\tpush {sizeof}")
             inter.output(f"\tcall malloc")
             inter.output(f"\tadd esp, 4")
-            inter.output(f"\tmov dword [{globals()['OBJECTS_MEM']}+{inter.objects_c}], eax")
-            inter.objects_c += 4
             inter.output(f"\tmov dword [ebp-{inter.Vars[self['name']]['offset']}], eax")
             inter.output(f"\t; put sizeof class in first 4 bytes")
             inter.output(f"\tmov dword [eax], dword {sizeof-4}")
@@ -1518,7 +1539,6 @@ class Inter(object):
     Vars = {}
     externed = []
     lab_index = 0
-    objects_c = 0
     strs = {r'%d': "numfmt",r'%s':"strfmt"}
     str_index = 0
     Functions = {}
@@ -1727,11 +1747,11 @@ class Inter(object):
         def field_set_expr(p):
             return ast.SetField({'ptr': p[1][0],'value': p[1][1],'field':p[1][2]['value'],'class':p[1][3]['value']})
 
-        @pg.production("expr : @ CALL_METHOD = expr",precedence="@")
+        @pg.production("expr : CALL_METHOD = expr",precedence="TYPE")
         def field_set_auto_expr(p):
-            name = p[1].value.split(".")[0]
-            field = p[1].value.split(".")[1]
-            return ast.SetFieldAuto({'name': name,'value': p[3],'field':field})
+            name = p[0].value.split(".")[0]
+            field = p[0].value.split(".")[1]
+            return ast.SetFieldAuto({'name': name,'value': p[2],'field':field})
 
         @pg.production("expr : expr , expr",precedence=",")
         def dot_expr(p):
@@ -1805,6 +1825,15 @@ class Inter(object):
             else:
                 return ast.Object({'name': p[2].value,'class': p[1].value,
                 'args': [p[3]]})
+
+        @pg.production("expr : GET ID ID = expr",precedence="OBJECT")
+        def create_obj_stmnt(p):
+            if isinstance(p[4],list):
+                return ast.Object({'name': p[2].value,'class': p[1].value,
+                'args': p[4]})
+            else:
+                return ast.Object({'name': p[2].value,'class': p[1].value,
+                'args': [p[4]]})
 
         @pg.production("expr : ARRAY TYPE [ expr ] ID",precedence="ARRAY")
         def array_create_stmnt(p):
@@ -2101,7 +2130,6 @@ extern free
     def classof(self,varname):
         return self.classes[self.Vars[varname]["type"].split("[")[1].split("]")[0]]
 
-globals()["OBJECTS_MEM"] = f"A{random.randint(1000,999999)}ME{random.randint(0,333)}M"
 
 inter = Inter()
 
@@ -2133,7 +2161,6 @@ inter._add_data('\t' + r'charfmt: db "%c",0')
 inter._add_data('\t' + r'strfmt: db "%s",0')
 inter._add_data('\t' + r'newline: db 10,0')
 inter.init_data()
-inter._add_bss(f"\t{globals()['OBJECTS_MEM']}: resb {inter.objects_c}")
 inter.init_bss()
 
 inter.save_asm()
